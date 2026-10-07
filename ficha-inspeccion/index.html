@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b4f4a">
+<title>Ficha de Inspección Técnica</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="lib/leaflet/leaflet.css">
+<link rel="stylesheet" href="lib/draw/leaflet.draw.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <h1 id="title">Fichas de inspección</h1>
+  <span id="net" class="net" title="Estado de conexión">en línea</span>
+</header>
+
+<main>
+  <!-- ============ FICHAS (lista) ============ -->
+  <section id="v-fichas" class="view">
+    <div class="bar wrap">
+      <button class="btn primary" id="btnNewFicha">+ Nueva ficha</button>
+      <input type="search" id="q" class="filter grow" placeholder="Buscar por ficha, tema, institución o lugar…">
+    </div>
+    <p id="totals" class="totline"></p>
+    <div id="fichaList" class="cards"></div>
+    <div class="row wrap pad">
+      <button class="btn" id="btnCsv">Exportar CSV</button>
+      <button class="btn" id="btnGeoAll">Exportar Inspecciones (GeoJSON)</button>
+    </div>
+  </section>
+
+  <!-- ============ DETALLE DE UNA FICHA ============ -->
+  <section id="v-detalle" class="view hidden">
+    <div class="bar sticky">
+      <button class="btn" data-act="detail-back">← Fichas</button>
+      <button class="btn primary" data-act="f-pdf">Descargar PDF</button>
+    </div>
+    <div class="panel">
+      <h2 id="d-title"></h2>
+      <div id="d-info" class="kv"></div>
+    </div>
+    <div class="panel hidden" id="d-mapPanel">
+      <h2>Mapa de ubicación</h2>
+      <div id="d-map" class="preview"></div>
+    </div>
+    <div class="panel hidden" id="d-fotosPanel">
+      <h2>Registro fotográfico</h2>
+      <div id="d-fotos" class="dphotos"></div>
+    </div>
+    <div class="panel">
+      <h2>Acciones</h2>
+      <div class="actgrid">
+        <button class="btn" data-act="f-pdf">Descargar PDF</button>
+        <button class="btn" data-act="f-share" id="d-share">Compartir PDF</button>
+        <button class="btn" data-act="f-geo" id="d-geo">Exportar perímetro (GeoJSON)</button>
+        <button class="btn" data-act="f-zip" id="d-zip">Exportar fotos (ZIP)</button>
+        <button class="btn" data-act="f-edit">Editar</button>
+        <button class="btn" data-act="f-dup">Duplicar</button>
+        <button class="btn danger" data-act="f-del">Eliminar</button>
+      </div>
+      <p class="hint">"Descargar PDF" guarda el archivo en el teléfono; "Compartir PDF" lo envía por WhatsApp, correo u otra app.</p>
+    </div>
+  </section>
+
+  <!-- ============ REGISTRO / EDICIÓN DE FICHA ============ -->
+  <section id="v-ficha" class="view hidden">
+    <div class="bar sticky">
+      <button class="btn" data-act="ficha-back">← Volver</button>
+      <button class="btn primary" id="btnSaveFicha">Guardar</button>
+    </div>
+
+    <div class="panel">
+      <h2>Identificación</h2>
+      <div class="form">
+        <label class="fld wide"><span>Institución *</span><input id="f-inst" autocomplete="off" placeholder="Nombre de la institución"></label>
+        <label class="fld"><span>Dirección / Área</span><input id="f-dir" autocomplete="off"></label>
+        <label class="fld"><span>Unidad / Departamento</span><input id="f-unidad" autocomplete="off"></label>
+        <label class="fld wide"><span>FICHA N° *</span><input id="f-ficha" autocomplete="off"></label>
+        <label class="fld wide"><span>TEMA *</span><input id="f-tema" autocomplete="off" placeholder="Ej. Inspección técnica por deslizamiento…"></label>
+        <label class="fld"><span>FECHA *</span><input type="date" id="f-fecha"></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Lugar</h2>
+      <div class="form">
+        <label class="fld"><span>Administración Zonal</span><input id="f-zonal" autocomplete="off"></label>
+        <label class="fld"><span>Parroquia</span><input id="f-parroquia" autocomplete="off"></label>
+        <label class="fld"><span>Barrio</span><input id="f-barrio" autocomplete="off"></label>
+        <label class="fld"><span>Microcuenca</span><input id="f-microcuenca" autocomplete="off"></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Coordenada y mapa</h2>
+      <p class="hint">Dibuja el perímetro con las herramientas (arriba a la izquierda): rectángulo/cuadrado o polígono de varios vértices. Las coordenadas (WGS84 y UTM) se calculan solas desde el centroide del polígono.</p>
+      <div class="form">
+        <label class="fld"><span>Latitud (WGS84)</span><input id="c-lat" readonly placeholder="—"></label>
+        <label class="fld"><span>Longitud (WGS84)</span><input id="c-lng" readonly placeholder="—"></label>
+        <label class="fld"><span>Este - X (UTM)</span><input id="c-este" readonly placeholder="—"></label>
+        <label class="fld"><span>Norte - Y (UTM)</span><input id="c-norte" readonly placeholder="—"></label>
+        <label class="fld"><span>Zona UTM</span><input id="c-zona" readonly placeholder="—"></label>
+        <label class="fld"><span>Hemisferio</span><select id="c-hemi" disabled><option value="S">Sur (S)</option><option value="N">Norte (N)</option></select></label>
+      </div>
+      <div id="coordMap" class="map coordmap"></div>
+      <div id="ringStats" class="statgrid"></div>
+      <div class="row wrap">
+        <button class="btn" id="btnClearRing">Borrar perímetro</button>
+        <button class="btn" id="btnPrefetch">Precargar mapa de la zona (offline)</button>
+      </div>
+      <span id="prefetchMsg" class="hint"></span>
+    </div>
+
+    <div class="panel">
+      <h2>Objetivo</h2>
+      <label class="fld"><textarea id="f-objetivo" rows="3"></textarea></label>
+    </div>
+    <div class="panel">
+      <h2>Antecedentes</h2>
+      <label class="fld"><textarea id="f-antecedentes" rows="4"></textarea></label>
+    </div>
+    <div class="panel">
+      <h2>Desarrollo de actividades</h2>
+      <label class="fld"><textarea id="f-desarrollo" rows="6"></textarea></label>
+    </div>
+
+    <div class="panel">
+      <h2>Participantes</h2>
+      <p class="hint">Uno por línea.</p>
+      <label class="fld"><textarea id="f-participantes" rows="3" placeholder="Ej. Unidad de Microcuencas"></textarea></label>
+    </div>
+
+    <div class="panel">
+      <h2>Registro fotográfico</h2>
+      <div class="row wrap">
+        <button class="btn primary" id="btnCam">Tomar foto</button>
+        <button class="btn" id="btnGal">Agregar fotos (galería)</button>
+        <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden">
+        <input type="file" id="galInput" accept="image/*" multiple class="hidden">
+      </div>
+      <p class="hint" id="fotosHint"></p>
+      <p class="hint">Puedes agregar varias fotos (en la galería selecciona más de una). Escribe una descripción breve en cada una; se limita a 90 caracteres para que quepa en el PDF.</p>
+      <div id="fotosGrid" class="photos"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Recomendaciones</h2>
+      <p class="hint">Uno por línea.</p>
+      <label class="fld"><textarea id="f-recomendaciones" rows="3"></textarea></label>
+    </div>
+
+    <div class="panel">
+      <h2>Firmas de responsabilidad</h2>
+      <p class="hint">Elige el responsable en cada fila; su nombre y cargo se copian del catálogo. El espacio de firma queda en blanco en el PDF para firmar el documento impreso.</p>
+      <div id="firmasRows"></div>
+      <button class="btn" id="btnAddFirma">+ Añadir fila de firma</button>
+    </div>
+  </section>
+
+  <!-- ============ RESPONSABLES ============ -->
+  <section id="v-responsables" class="view hidden">
+    <div class="bar"><button class="btn primary" id="btnNewResp">+ Nuevo responsable</button></div>
+    <div id="respList" class="cards"></div>
+  </section>
+
+  <section id="v-responsable" class="view hidden">
+    <div class="bar sticky">
+      <button class="btn" data-act="resp-back">← Volver</button>
+      <button class="btn primary" id="btnSaveResp">Guardar responsable</button>
+    </div>
+    <div class="panel">
+      <h2>Datos del responsable</h2>
+      <div class="form">
+        <label class="fld wide"><span>Nombre completo *</span><input id="r-nombre" autocomplete="off"></label>
+        <label class="fld wide"><span>Cargo *</span><input id="r-cargo" autocomplete="off"></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RESPALDO ============ -->
+  <section id="v-respaldo" class="view hidden">
+    <div class="panel">
+      <h2>Estado de la app</h2>
+      <p id="offlineState" class="hint"></p>
+      <p class="hint" id="storageInfo"></p>
+      <p class="hint" id="versionInfo"></p>
+    </div>
+    <div class="panel">
+      <h2>Respaldo de datos</h2>
+      <p class="hint">Fichas y responsables se guardan solo en este teléfono. Las fotografías NO se incluyen aquí; expórtalas aparte en ZIP.</p>
+      <div class="row wrap">
+        <button class="btn primary" id="btnBackup">Exportar respaldo (.json)</button>
+        <label class="btn filebtn">Importar respaldo<input type="file" id="fileRestore" accept=".json,application/json"></label>
+      </div>
+      <p class="hint" id="backupInfo"></p>
+    </div>
+    <div class="panel">
+      <h2>Fotografías</h2>
+      <p class="hint">Descarga un archivo .zip con todas las fotos de todas las fichas, junto con un índice CSV.</p>
+      <button class="btn" id="btnZipAll">Exportar todas las fotos (ZIP)</button>
+      <p class="hint" id="zipInfo"></p>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button data-tab="fichas" class="on">Fichas</button>
+  <button data-tab="responsables">Responsables</button>
+  <button data-tab="respaldo">Respaldo</button>
+</nav>
+<div id="updateBar" class="updatebar hidden"><span>Hay una versión nueva de la app.</span><button class="btn small" id="btnReload">Actualizar</button></div>
+<div id="toast" class="toast hidden"></div>
+<div id="busy" class="busy hidden"><div>Procesando…</div></div>
+
+<script src="lib/leaflet/leaflet.js"></script>
+<script src="lib/draw/leaflet.draw.js"></script>
+<script src="lib/jspdf/jspdf.umd.min.js"></script>
+<script src="js/db.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/fotos.js"></script>
+<script src="js/zip.js"></script>
+<script src="js/mapimg.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
