@@ -1,6 +1,5 @@
 /* Capas base, imagen del mapa de ubicación (canvas) y precarga de teselas para uso sin conexión.
-   Soporta un perímetro (polígono/rectángulo) y/o un punto, con caja de leyenda, norte, escala y
-   recuadro de contexto, al estilo de la bitácora de vuelo. */
+   Dibuja el área de inspección (polígono/rectángulo) con su leyenda, norte, escala y atribución. */
 const MapImg = (() => {
   const LAYERS = {
     esri: {
@@ -43,19 +42,6 @@ const MapImg = (() => {
     return (f >= 5 ? 5 : f >= 2 ? 2 : 1) * p;
   }
 
-  function wrapText(ctx, text, maxW) {
-    const words = String(text || '').split(/\s+/).filter(Boolean);
-    const lines = [];
-    let cur = '';
-    for (const w of words) {
-      const t = cur ? cur + ' ' + w : w;
-      if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; }
-      else cur = t;
-    }
-    if (cur) lines.push(cur);
-    return lines;
-  }
-
   async function tilesIn(layerKey, z, cx, cy, W, H) {
     const ox = cx - W / 2, oy = cy - H / 2;
     const x0 = Math.floor(ox / 256), x1 = Math.floor((ox + W) / 256);
@@ -79,14 +65,6 @@ const MapImg = (() => {
       for (let y = 0; y < H; y += 80) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
     }
     imgs.forEach(({ im, x, y }) => { if (im) g.drawImage(im, x * 256 - ox, y * 256 - oy); });
-  }
-
-  function drawDiamond(g, x, y, r) {
-    g.beginPath();
-    g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y); g.closePath();
-    g.fillStyle = '#ffd400'; g.fill();
-    g.lineWidth = 3; g.strokeStyle = '#0b4f4a'; g.stroke();
-    g.beginPath(); g.arc(x, y, r * 0.28, 0, Math.PI * 2); g.fillStyle = '#0b4f4a'; g.fill();
   }
 
   function drawPolygon(g, ring, z, ox, oy) {
@@ -135,115 +113,63 @@ const MapImg = (() => {
     g.fillStyle = '#222'; g.fillText(attr, W - 7, H - 7);
   }
 
-  function drawLegend(g, legend, sub, hasRing) {
-    const pad = 14, x0 = 24, y0 = 24;
+  /* Leyenda con una sola entrada: el polígono del área de inspección. */
+  function drawLegend(g) {
+    const pad = 14, x0 = 24, y0 = 24, label = 'Área de inspección';
     g.font = 'bold 15px Arial'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
-    const labelW = g.measureText('Leyenda').width;
-    g.font = '13px Arial';
-    const lines = wrapText(g, legend, 300);
-    let textW = labelW;
-    for (const l of lines) textW = Math.max(textW, g.measureText(l).width);
-    if (hasRing) textW = Math.max(textW, g.measureText('Perímetro de inspección').width);
-    if (sub) { g.font = '11px Arial'; textW = Math.max(textW, g.measureText(sub).width); }
+    const textW = Math.max(g.measureText('Leyenda').width, g.measureText(label).width);
     const boxW = Math.min(430, pad * 2 + 26 + 12 + textW);
-    let rows = (hasRing ? 1 : 0) + lines.length + (sub ? 1 : 0);
-    const boxH = pad * 2 + 20 + rows * 17;
+    const boxH = pad * 2 + 20 + 17;
     g.fillStyle = 'rgba(255,255,255,0.94)';
     g.strokeStyle = 'rgba(11,79,74,0.35)'; g.lineWidth = 1;
     g.beginPath();
     if (g.roundRect) { g.roundRect(x0, y0, boxW, boxH, 10); g.fill(); g.stroke(); }
     else { g.rect(x0, y0, boxW, boxH); g.fill(); g.stroke(); }
-    g.fillStyle = '#0b4f4a'; g.font = 'bold 15px Arial'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    g.fillStyle = '#0b4f4a'; g.font = 'bold 15px Arial';
     g.fillText('Leyenda', x0 + pad, y0 + pad + 14);
-    let ty = y0 + pad + 20 + 13;
-    if (hasRing) {
-      const sx = x0 + pad + 9, sy = ty - 6;
-      g.beginPath(); g.rect(sx - 8, sy - 6, 16, 12);
-      g.fillStyle = 'rgba(0,220,200,0.5)'; g.fill();
-      g.lineWidth = 2; g.strokeStyle = '#ffd400'; g.stroke();
-      g.fillStyle = '#172026'; g.font = '13px Arial';
-      g.fillText('Perímetro de inspección', x0 + pad + 26 + 12, ty);
-      ty += 17;
-    }
-    drawDiamond(g, x0 + pad + 9, ty - 5, 9);
+    const ty = y0 + pad + 20 + 13, sx = x0 + pad + 9;
+    g.beginPath(); g.rect(sx - 8, ty - 12, 16, 12);
+    g.fillStyle = 'rgba(0,220,200,0.5)'; g.fill();
+    g.lineWidth = 2; g.strokeStyle = '#ffd400'; g.stroke();
     g.fillStyle = '#172026'; g.font = '13px Arial';
-    for (const l of lines) { g.fillText(l, x0 + pad + 26 + 12, ty); ty += 17; }
-    if (sub) { g.fillStyle = '#5d6a72'; g.font = '11px Arial'; g.fillText(sub, x0 + pad + 26 + 12, ty + 1); }
+    g.fillText(label, x0 + pad + 26 + 12, ty);
   }
 
+  /* Imagen del mapa de ubicación. Solo dibuja el área de inspección (sin símbolo de punto). */
   async function render(map) {
-    const { ring, lat, lng, legend, sub, layer = 'esri', z = 16, W = 1200, H = 800 } = map || {};
-    const ringOk = Array.isArray(ring) && ring.length >= 3;
-    const ptOk = isFinite(lat) && isFinite(lng);
-    if (!ringOk && !ptOk) return null;
+    const { ring, layer = 'esri', W = 1200, H = 800 } = map || {};
+    if (!Array.isArray(ring) || ring.length < 3) return null;
 
-    let zoom = z, cx, cy;
-    if (ringOk) {
-      const b = Geo.bounds(ring);
-      zoom = 18;
-      const padF = 0.18;
-      for (; zoom > 1; zoom--) {
-        const a = worldPx(b.n, b.w, zoom), c = worldPx(b.s, b.e, zoom);
-        if ((c[0] - a[0]) * (1 + 2 * padF) <= W && (c[1] - a[1]) * (1 + 2 * padF) <= H) break;
-      }
+    const b = Geo.bounds(ring);
+    let zoom = 18;
+    const padF = 0.18;
+    for (; zoom > 1; zoom--) {
       const a = worldPx(b.n, b.w, zoom), c = worldPx(b.s, b.e, zoom);
-      cx = (a[0] + c[0]) / 2; cy = (a[1] + c[1]) / 2;
-    } else {
-      [cx, cy] = worldPx(lat, lng, zoom);
+      if ((c[0] - a[0]) * (1 + 2 * padF) <= W && (c[1] - a[1]) * (1 + 2 * padF) <= H) break;
     }
-    // Punto a marcar: el dado o el centroide del perímetro.
-    let plat = lat, plng = lng;
-    if (ringOk && !ptOk) { const cen = Geo.centroid(ring); plat = cen[0]; plng = cen[1]; }
+    const a = worldPx(b.n, b.w, zoom), c = worldPx(b.s, b.e, zoom);
+    const cx = (a[0] + c[0]) / 2, cy = (a[1] + c[1]) / 2;
+    const latRef = Geo.centroid(ring)[0];
 
     const r = await tilesIn(layer, zoom, cx, cy, W, H);
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     const g = cv.getContext('2d');
     paintBase(g, W, H, r.imgs, r.tilesOk, r.ox, r.oy);
-    if (ringOk) drawPolygon(g, ring, zoom, r.ox, r.oy);
-    if (isFinite(plat) && isFinite(plng)) {
-      const [px, py] = worldPx(plat, plng, zoom);
-      drawDiamond(g, px - r.ox, py - r.oy, 16);
-    }
-    drawLegend(g, legend, sub, ringOk);
+    drawPolygon(g, ring, zoom, r.ox, r.oy);
+    drawLegend(g);
     drawNorth(g, W);
-    drawScale(g, isFinite(plat) ? plat : 0, zoom, W, H);
+    drawScale(g, latRef, zoom, W, H);
     drawAttribution(g, layer, r.tilesOk, W, H);
-
-    // Recuadro de contexto (vista regional, abajo a la derecha).
-    const IW = 320, IH = 230, iz = Math.max(4, zoom - 6);
-    const icx = cx / Math.pow(2, zoom - iz), icy = cy / Math.pow(2, zoom - iz);
-    const ictx = await tilesIn(layer, iz, icx, icy, IW, IH);
-    const ic = document.createElement('canvas');
-    ic.width = IW; ic.height = IH;
-    const ig = ic.getContext('2d');
-    paintBase(ig, IW, IH, ictx.imgs, ictx.tilesOk, ictx.ox, ictx.oy);
-    if (ringOk) drawPolygon(ig, ring, iz, ictx.ox, ictx.oy);
-    if (isFinite(plat) && isFinite(plng)) {
-      const [ix, iy] = worldPx(plat, plng, iz);
-      drawDiamond(ig, ix - ictx.ox, iy - ictx.oy, 8);
-    }
-    const mainHalfPx = (W / 2) * Math.pow(2, iz - zoom);
-    ig.strokeStyle = 'rgba(11,79,74,0.9)'; ig.lineWidth = 2;
-    ig.strokeRect(icx - ictx.ox - mainHalfPx, icy - ictx.oy - mainHalfPx * (H / W), mainHalfPx * 2, mainHalfPx * 2 * (H / W));
-
-    const ix0 = W - IW - 24, iy0 = H - IH - 24;
-    g.fillStyle = 'rgba(255,255,255,0.92)'; g.strokeStyle = 'rgba(11,79,74,0.4)'; g.lineWidth = 1;
-    g.fillRect(ix0 - 4, iy0 - 26, IW + 8, IH + 30);
-    g.strokeRect(ix0 - 4, iy0 - 26, IW + 8, IH + 30);
-    g.fillStyle = '#0b4f4a'; g.font = 'bold 12px Arial'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
-    g.fillText('Ubicación', ix0, iy0 - 10);
-    g.drawImage(ic, ix0, iy0);
-    g.strokeStyle = 'rgba(0,0,0,0.2)'; g.strokeRect(ix0, iy0, IW, IH);
 
     let dataUrl;
     try { dataUrl = cv.toDataURL('image/jpeg', 0.88); }
     catch (e) {
+      // Canvas contaminado por teselas sin CORS: se redibuja sin fondo.
       g.clearRect(0, 0, W, H);
       paintBase(g, W, H, [], 0, 0, 0);
-      if (ringOk) drawPolygon(g, ring, zoom, 0, 0);
-      if (isFinite(plat) && isFinite(plng)) drawDiamond(g, W / 2, H / 2, 16);
-      drawLegend(g, legend, sub, ringOk); drawNorth(g, W); drawScale(g, isFinite(plat) ? plat : 0, zoom, W, H); drawAttribution(g, layer, 0, W, H);
+      drawPolygon(g, ring, zoom, 0, 0);
+      drawLegend(g); drawNorth(g, W); drawScale(g, latRef, zoom, W, H); drawAttribution(g, layer, 0, W, H);
       dataUrl = cv.toDataURL('image/jpeg', 0.88);
       return { dataUrl, tilesOk: 0, z: zoom, layer };
     }
@@ -270,11 +196,7 @@ const MapImg = (() => {
     return { list: [], top: 0 };
   }
 
-  function geomBbox(geom) {
-    if (geom.ring && geom.ring.length >= 3) return Geo.bounds(geom.ring);
-    const dLat = 0.009, dLng = 0.009 / Math.max(0.1, Math.cos(geom.lat * Math.PI / 180));
-    return { s: geom.lat - dLat, n: geom.lat + dLat, w: geom.lng - dLng, e: geom.lng + dLng };
-  }
+  const geomBbox = (geom) => Geo.bounds(geom.ring);
 
   async function prefetch(geom, layerKey, onProgress, cap = 300) {
     const bbox = geomBbox(geom);

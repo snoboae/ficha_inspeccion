@@ -106,15 +106,16 @@
     const l = f.lugar || {};
     const row = (lbl, v) => `<div><small>${esc(lbl)}</small><b>${esc(v == null || v === '' ? '-' : v)}</b></div>`;
     const c = f.coord || {};
-    const coordTxt = c.e != null && isFinite(c.e) ? `X ${c.e.toFixed(2)} · Y ${c.n.toFixed(2)} · UTM ${c.zone}${c.hemi || ''}${isFinite(c.lat) ? '  (' + c.lat.toFixed(6) + ', ' + c.lng.toFixed(6) + ')' : ''}` : '';
-    const ringTxt = (f.ring && f.ring.length > 2) ? (f.area / 10000).toFixed(2) + ' ha · ' + Math.round(f.perimetro) + ' m · ' + f.ring.length + ' vértices' : '';
+    const coordTxt = c.e != null && isFinite(c.e) ? `X ${c.e.toFixed(2)} · Y ${c.n.toFixed(2)} · UTM ${c.zone}${c.hemi || ''}` : '';
+    const areaTxt = (f.ring && f.ring.length > 2 && f.area) ? (f.area / 10000).toFixed(2) + ' ha' : '';
+    const lugarTxt = [l.zonal ? 'Administración Zonal: ' + l.zonal : '', l.parroquia ? 'Parroquia: ' + l.parroquia : '', l.barrio ? 'Barrio: ' + l.barrio : '', l.microcuenca ? 'Microcuenca: ' + l.microcuenca : ''].filter(Boolean).join('\n');
     $('d-title').textContent = (f.fichaNo || '') + ' · ' + fmtDate(f.fecha);
     $('d-info').innerHTML =
       row('Institución', [f.institucion, f.dirArea, f.unidad].filter(Boolean).join(' · ')) +
       row('Tema', f.tema) +
-      row('Lugar', [l.zonal ? 'Zonal: ' + l.zonal : '', l.parroquia ? 'Parroquia: ' + l.parroquia : '', l.barrio ? 'Barrio: ' + l.barrio : '', l.microcuenca ? 'Microcuenca: ' + l.microcuenca : ''].filter(Boolean).join(' · ')) +
+      row('Lugar', lugarTxt) +
       row('Coordenada', coordTxt) +
-      (ringTxt ? row('Perímetro de inspección', ringTxt) : '') +
+      (areaTxt ? row('Área de inspección', areaTxt) : '') +
       row('Participantes', (f.participantes || []).join(', ')) +
       row('Recomendaciones', (f.recomendaciones || []).join(', '));
     $('d-mapPanel').classList.toggle('hidden', !f.mapImage);
@@ -218,15 +219,9 @@
 
     busy(true, 'Guardando…');
     try {
-      if (f.coord || f.ring.length > 2) {
+      if (f.ring.length > 2) {
         $('busy').firstElementChild.textContent = 'Generando mapa de ubicación…';
-        const img = await MapImg.render({
-          ring: f.ring.length > 2 ? f.ring : null,
-          lat: f.coord ? f.coord.lat : null, lng: f.coord ? f.coord.lng : null,
-          legend: f.tema || 'Inspección técnica',
-          sub: (f.fichaNo ? 'Ficha N° ' + f.fichaNo + ' · ' : '') + fmtDate(f.fecha),
-          layer: f.layer || 'esri'
-        });
+        const img = await MapImg.render({ ring: f.ring, layer: f.layer || 'esri' });
         if (img) { f.mapImage = img.dataUrl; if (img.tilesOk === 0) toast('Sin mapa de fondo en la imagen (sin conexión y sin teselas guardadas). Se dibujó solo la referencia.', 6500); }
         else f.mapImage = '';
       } else f.mapImage = '';
@@ -411,8 +406,6 @@
   }
 
   function syncCoordFields() {
-    $('c-lat').value = S.coord.lat != null ? S.coord.lat.toFixed(6) : '';
-    $('c-lng').value = S.coord.lng != null ? S.coord.lng.toFixed(6) : '';
     $('c-este').value = S.coord.e != null ? S.coord.e.toFixed(2) : '';
     $('c-norte').value = S.coord.n != null ? S.coord.n.toFixed(2) : '';
     $('c-zona').value = S.coord.zone != null ? S.coord.zone : '';
@@ -436,7 +429,7 @@
     if (!navigator.onLine) { toast('Necesitas conexión para precargar el mapa.'); return; }
     $('btnPrefetch').disabled = true;
     try {
-      const r = await MapImg.prefetch({ ring: S.ring, lat: S.coord.lat, lng: S.coord.lng }, S.baseLayer, (d, t) => { $('prefetchMsg').textContent = 'Descargando ' + d + ' / ' + t + '…'; });
+      const r = await MapImg.prefetch({ ring: S.ring }, S.baseLayer, (d, t) => { $('prefetchMsg').textContent = 'Descargando ' + d + ' / ' + t + '…'; });
       $('prefetchMsg').textContent = 'Listo: ' + r.ok + ' de ' + r.total + ' teselas guardadas (zoom hasta ' + r.top + ').';
     } catch (e) { $('prefetchMsg').textContent = e.message; }
     $('btnPrefetch').disabled = false;

@@ -55,7 +55,9 @@ const PDF = (() => {
       d.setFont('helvetica', 'normal'); d.setFontSize(9.5);
       let hMax = 0;
       row.forEach((c) => {
-        c.lines = d.splitTextToSize(c.v === '' || c.v == null ? '-' : String(c.v), cw * c.span - 5);
+        c.lines = Array.isArray(c.v)
+          ? c.v.map((t) => String(t))
+          : d.splitTextToSize(c.v === '' || c.v == null ? '-' : String(c.v), cw * c.span - 5);
         c.h = 4.4 + c.lines.length * LH + 1.4;
         hMax = Math.max(hMax, c.h);
       });
@@ -73,33 +75,33 @@ const PDF = (() => {
     ctx.y += 3;
   }
 
+  /* Solo coordenadas UTM. */
   const coordText = (f) => {
     const c = f.coord || {};
     if (c.e == null || !isFinite(c.e)) return '-';
-    let s = 'X ' + c.e.toFixed(2) + ' · Y ' + c.n.toFixed(2) + ' · UTM ' + c.zone + (c.hemi || '');
-    if (isFinite(c.lat) && isFinite(c.lng)) s += '\nWGS84 ' + c.lat.toFixed(6) + ', ' + c.lng.toFixed(6);
-    return s;
+    return 'X ' + c.e.toFixed(2) + ' · Y ' + c.n.toFixed(2) + ' · UTM ' + c.zone + (c.hemi || '');
   };
-  const lugarText = (f) => {
+  /* Un ítem por línea. */
+  const lugarLines = (f) => {
     const l = f.lugar || {};
-    const parts = [];
-    if (l.zonal) parts.push('Administración Zonal: ' + l.zonal);
-    if (l.parroquia) parts.push('Parroquia: ' + l.parroquia);
-    if (l.barrio) parts.push('Barrio: ' + l.barrio);
-    if (l.microcuenca) parts.push('Microcuenca: ' + l.microcuenca);
-    return parts.join(' · ') || '-';
+    const out = [];
+    if (l.zonal) out.push('Administración Zonal: ' + l.zonal);
+    if (l.parroquia) out.push('Parroquia: ' + l.parroquia);
+    if (l.barrio) out.push('Barrio: ' + l.barrio);
+    if (l.microcuenca) out.push('Microcuenca: ' + l.microcuenca);
+    return out.length ? out : ['-'];
   };
 
   function dataBlock(ctx, f) {
     const cells = [
       { l: 'TEMA', v: f.tema, span: 2 },
       { l: 'FECHA', v: fmtDate(f.fecha) },
-      { l: 'COORDENADA', v: coordText(f) },
-      { l: 'LUGAR', v: lugarText(f), span: 2 }
+      { l: 'COORDENADA', v: coordText(f) }
     ];
     if (f.ring && f.ring.length >= 3 && f.area != null && isFinite(f.area)) {
-      cells.push({ l: 'PERÍMETRO DE INSPECCIÓN', v: (f.area / 10000).toFixed(2) + ' ha · ' + Math.round(f.perimetro) + ' m · ' + f.ring.length + ' vértices', span: 2 });
+      cells.push({ l: 'ÁREA DE INSPECCIÓN', v: (f.area / 10000).toFixed(2) + ' ha', span: 2 });
     }
+    cells.push({ l: 'LUGAR', v: lugarLines(f), span: 2 });
     grid(ctx, cells, 2);
   }
 
@@ -112,8 +114,11 @@ const PDF = (() => {
     d.setTextColor(0);
     ctx.y += 9.5;
   }
-  function section(ctx, num, title) {
-    ensure(ctx, 12);
+  /* Dibuja la barra de sección asegurando que quepa también un mínimo de contenido,
+     para que ningún título quede solo al final de una página. */
+  function section(ctx, num, title, minContent) {
+    const need = 9.5 + (minContent == null ? 14 : minContent);
+    if (ctx.y + need > BOTTOM) { ctx.doc.addPage(); ctx.y = 16; }
     sectionBar(ctx, num, title);
   }
 
@@ -144,13 +149,16 @@ const PDF = (() => {
   }
 
   function photoGrid(ctx, num, title, photos) {
-    section(ctx, num, title);
-    if (!photos || !photos.length) { para(ctx, 'Sin fotografías registradas.'); return; }
     const gap = 8, cw = (CW - gap) / 2, ph = 58, capH = 13;
+    const rowH = ph + capH + 6;
+    // El título y la primera fila de fotos deben caber juntos: si no, se pasa de página
+    // antes de escribir el título (nunca un título solo al final de la página).
+    if (ctx.y + 9.5 + rowH > BOTTOM) { ctx.doc.addPage(); ctx.y = 16; }
+    sectionBar(ctx, num, title);
+    if (!photos || !photos.length) { para(ctx, 'Sin fotografías registradas.'); return; }
     let i = 0;
     while (i < photos.length) {
-      const need = ph + capH + 6;
-      if (ctx.y + need > BOTTOM) { ctx.doc.addPage(); ctx.y = 16; sectionBar(ctx, num, title); }
+      if (ctx.y + rowH > BOTTOM) { ctx.doc.addPage(); ctx.y = 16; sectionBar(ctx, num, title); }
       const yTop = ctx.y;
       for (let c = 0; c < 2 && i < photos.length; c++, i++) {
         const p = photos[i];
@@ -165,23 +173,26 @@ const PDF = (() => {
         }
         // pie de foto (hasta 2 líneas; el resto se corta con puntos suspensivos)
         ctx.doc.setFont('helvetica', 'normal'); ctx.doc.setFontSize(8); ctx.doc.setTextColor(...GRAY);
-        const cap = ctx.doc.splitTextToSize('Foto ' + (i) + (p.pie ? ': ' + p.pie : ''), cw - 3);
+        const cap = ctx.doc.splitTextToSize('Foto ' + (i + 1) + (p.pie ? ': ' + p.pie : ''), cw - 3);
         const shown = cap.slice(0, 2);
         if (cap.length > 2) shown[1] = shown[1] + '…';
         ctx.doc.text(shown, x + 1.5, yTop + ph + 4.5);
         ctx.doc.setTextColor(0);
       }
-      ctx.y = yTop + need;
+      ctx.y = yTop + rowH;
     }
   }
 
+  /* El mapa se ajusta al alto disponible para que siempre quede en la primera página. */
   function mapBlock(ctx, f) {
-    if (!f.mapImage) { para(ctx, 'Sin mapa de ubicación (no se registró una coordenada).'); return; }
+    if (!f.mapImage) { para(ctx, 'Sin mapa de ubicación (no se dibujó el área de inspección).'); return; }
     const d = ctx.doc;
-    const h = CW * 800 / 1200;
-    ensure(ctx, h + 4);
-    d.addImage(f.mapImage, 'JPEG', M, ctx.y, CW, h);
-    d.setDrawColor(...LINE); d.setLineWidth(0.2); d.rect(M, ctx.y, CW, h);
+    let w = CW, h = CW * 800 / 1200;
+    const avail = Math.max(40, BOTTOM - ctx.y);
+    if (h > avail) { const k = avail / h; h = avail; w = CW * k; }
+    const x = M + (CW - w) / 2;
+    d.addImage(f.mapImage, 'JPEG', x, ctx.y, w, h);
+    d.setDrawColor(...LINE); d.setLineWidth(0.2); d.rect(x, ctx.y, w, h);
     ctx.y += h + 5;
   }
 
@@ -235,20 +246,25 @@ const PDF = (() => {
     ctx.y = 34;
     dataBlock(ctx, f);
 
-    section(ctx, '1', 'Objetivo');
-    para(ctx, f.objetivo);
-    section(ctx, '2', 'Antecedentes');
-    para(ctx, f.antecedentes);
-    section(ctx, '3', 'Desarrollo de actividades');
-    para(ctx, f.desarrollo);
-    section(ctx, '4', 'Participantes');
-    numList(ctx, f.participantes);
-    photoGrid(ctx, '5', 'Registro fotográfico', fotos);
-    section(ctx, '6', 'Recomendaciones');
-    numList(ctx, f.recomendaciones);
-    section(ctx, '7', 'Mapa de ubicación');
+    // 1. Mapa de ubicación: cierra la primera página.
+    section(ctx, '1', 'Mapa de ubicación');
     mapBlock(ctx, f);
-    section(ctx, '8', 'Firmas de responsabilidad');
+
+    // 2. Objetivo: siempre comienza en la página 2.
+    doc.addPage();
+    ctx.y = 16;
+    section(ctx, '2', 'Objetivo');
+    para(ctx, f.objetivo);
+    section(ctx, '3', 'Antecedentes');
+    para(ctx, f.antecedentes);
+    section(ctx, '4', 'Desarrollo de actividades');
+    para(ctx, f.desarrollo);
+    section(ctx, '5', 'Participantes');
+    numList(ctx, f.participantes);
+    photoGrid(ctx, '6', 'Registro fotográfico', fotos);
+    section(ctx, '7', 'Recomendaciones');
+    numList(ctx, f.recomendaciones);
+    section(ctx, '8', 'Firmas de responsabilidad', 38);
     signatureTable(ctx, f.firmas);
 
     footers(doc, (f.institucion || 'Ficha de inspección') + ' · FICHA N° ' + (f.fichaNo || '-'));

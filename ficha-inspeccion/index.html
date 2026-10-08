@@ -96,11 +96,9 @@
     </div>
 
     <div class="panel">
-      <h2>Coordenada y mapa</h2>
-      <p class="hint">Dibuja el perímetro con las herramientas (arriba a la izquierda): rectángulo/cuadrado o polígono de varios vértices. Las coordenadas (WGS84 y UTM) se calculan solas desde el centroide del polígono.</p>
+      <h2>Área de inspección y mapa</h2>
+      <p class="hint">Dibuja el área con las herramientas (arriba a la izquierda): rectángulo/cuadrado o polígono de varios vértices. La coordenada UTM se calcula sola desde el centroide del polígono.</p>
       <div class="form">
-        <label class="fld"><span>Latitud (WGS84)</span><input id="c-lat" readonly placeholder="—"></label>
-        <label class="fld"><span>Longitud (WGS84)</span><input id="c-lng" readonly placeholder="—"></label>
         <label class="fld"><span>Este - X (UTM)</span><input id="c-este" readonly placeholder="—"></label>
         <label class="fld"><span>Norte - Y (UTM)</span><input id="c-norte" readonly placeholder="—"></label>
         <label class="fld"><span>Zona UTM</span><input id="c-zona" readonly placeholder="—"></label>
@@ -109,7 +107,7 @@
       <div id="coordMap" class="map coordmap"></div>
       <div id="ringStats" class="statgrid"></div>
       <div class="row wrap">
-        <button class="btn" id="btnClearRing">Borrar perímetro</button>
+        <button class="btn" id="btnClearRing">Borrar área dibujada</button>
         <button class="btn" id="btnPrefetch">Precargar mapa de la zona (offline)</button>
       </div>
       <span id="prefetchMsg" class="hint"></span>
