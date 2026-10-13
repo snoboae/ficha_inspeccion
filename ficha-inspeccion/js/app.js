@@ -44,7 +44,7 @@
   const S = {
     inspections: [], people: [], tab: 'fichas',
     ficha: null, detailId: null, q: '',
-    map: null, drawn: null, ring: [], baseLayer: 'esri',
+    map: null, drawn: null, ring: [], baseLayer: 'esri', locGroup: null,
     coord: { lat: null, lng: null, e: null, n: null, zone: null, hemi: 'S' },
     fotos: [], firmas: [], lastBackup: ''
   };
@@ -121,7 +121,9 @@
       row('Recomendaciones', (f.recomendaciones || []).join(', '));
     $('d-mapPanel').classList.toggle('hidden', !f.mapImage);
     $('d-map').innerHTML = f.mapImage ? `<img src="${f.mapImage}" alt="Mapa de ubicación">` : '';
-    $('d-share').classList.toggle('hidden', !(navigator.canShare && navigator.share));
+    const puedeCompartir = !!(navigator.canShare && navigator.share);
+    $('d-share').classList.toggle('hidden', !puedeCompartir);
+    $('d-shareword').classList.toggle('hidden', !puedeCompartir);
     $('d-geo').classList.toggle('hidden', !(f.ring && f.ring.length > 2));
     $('d-zip').classList.toggle('hidden', !(f.fotoCount > 0));
     Fotos.byInsp(id).then((metas) => {
@@ -286,9 +288,10 @@
   }
 
   /* =====================================================
-     PDF
+     INFORME: PDF y Word (.docx)
      ===================================================== */
-  async function preparePdf(id) {
+  /* Carga la ficha y sus fotografías. Lo usan los dos generadores. */
+  async function prepareFicha(id) {
     const f = S.inspections.find((x) => x.id === id);
     if (!f) return null;
     const metas = await Fotos.byInsp(id);
@@ -299,31 +302,42 @@
     }
     return { f, fotos };
   }
-  async function pdfBlob(id) {
-    const r = await preparePdf(id);
+
+  const MIME = {
+    pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  };
+  const EXT = { pdf: 'pdf', docx: 'docx' };
+  const nomInforme = (f, tipo) => 'Ficha_' + safeName(f.fichaNo || 'sin-numero') + '_' + (f.fecha || '').slice(0, 10) + '.' + EXT[tipo];
+  const etiqInforme = (tipo) => (tipo === 'docx' ? 'Word' : 'PDF');
+
+  async function informeBlob(id, tipo) {
+    const r = await prepareFicha(id);
     if (!r) return null;
-    return PDF.fichaDoc(r.f, r.fotos).output('blob');
+    return tipo === 'docx' ? Docx.fichaDoc(r.f, r.fotos) : PDF.fichaDoc(r.f, r.fotos).output('blob');
   }
-  async function pdfNow(id) {
-    busy(true, 'Generando PDF…');
+
+  async function informeNow(id, tipo) {
+    busy(true, 'Generando ' + etiqInforme(tipo) + '…');
     try {
-      const blob = await pdfBlob(id);
+      const blob = await informeBlob(id, tipo);
       if (!blob) return;
       const f = S.inspections.find((x) => x.id === id);
-      download(blob, 'Ficha_' + safeName(f.fichaNo || 'sin-numero') + '_' + (f.fecha || '').slice(0, 10) + '.pdf', 'application/pdf');
-    } catch (e) { console.error(e); toast('No se pudo generar el PDF: ' + e.message, 6000); }
+      download(blob, nomInforme(f, tipo), MIME[tipo]);
+    } catch (e) { console.error(e); toast('No se pudo generar el ' + etiqInforme(tipo) + ': ' + e.message, 6000); }
     finally { busy(false); }
   }
-  async function sharePdf(id) {
-    busy(true, 'Generando PDF…');
+
+  async function informeShare(id, tipo) {
+    busy(true, 'Generando ' + etiqInforme(tipo) + '…');
     try {
-      const blob = await pdfBlob(id);
+      const blob = await informeBlob(id, tipo);
       if (!blob) return;
       const f = S.inspections.find((x) => x.id === id);
-      const name = 'Ficha_' + safeName(f.fichaNo || 'sin-numero') + '_' + (f.fecha || '').slice(0, 10) + '.pdf';
-      const file = new File([blob], name, { type: 'application/pdf' });
+      const name = nomInforme(f, tipo);
+      const file = new File([blob], name, { type: MIME[tipo] });
       if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: name });
-      else download(blob, name, 'application/pdf');
+      else download(blob, name, MIME[tipo]);
     } catch (e) { if (e && e.name !== 'AbortError') toast('No se pudo compartir: ' + e.message, 5000); }
     finally { busy(false); }
   }
@@ -377,7 +391,44 @@
     map.on(L.Draw.Event.CREATED, (e) => setRing(ringFromLatLngs(e.layer.getLatLngs()[0]), true, true));
     map.on(L.Draw.Event.EDITED, () => { let r = null; drawn.eachLayer((l) => { r = ringFromLatLngs(l.getLatLngs()[0]); }); if (r) setRing(r, false, true); });
 
+    /* Botón en el mapa para centrarlo en la ubicación del teléfono. Es solo una
+       referencia visual para orientarse en campo: NO crea ningún punto ni se
+       guarda en la ficha. */
+    const LocCtl = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd() {
+        const box = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        const b = L.DomUtil.create('a', 'bv-loc', box);
+        b.href = '#';
+        b.title = 'Centrar en mi ubicación';
+        b.setAttribute('role', 'button');
+        b.setAttribute('aria-label', 'Centrar en mi ubicación');
+        b.innerHTML = '&#128205;';
+        L.DomEvent.disableClickPropagation(box);
+        L.DomEvent.on(b, 'click', (ev) => { L.DomEvent.preventDefault(ev); centrarEnMiUbicacion(); });
+        return box;
+      }
+    });
+    map.addControl(new LocCtl());
+    map.on('locationfound', (e) => {
+      if (S.locGroup) S.map.removeLayer(S.locGroup);
+      S.locGroup = L.layerGroup([
+        L.circle(e.latlng, { radius: e.accuracy, color: '#1e88e5', weight: 1, fillOpacity: 0.12 }),
+        L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#1e88e5', fillOpacity: 1 })
+      ]).addTo(S.map);
+    });
+    map.on('locationerror', () => toast('No se pudo obtener la ubicación. Revisa los permisos de GPS del navegador.', 6000));
+
     S.map = map; S.drawn = drawn;
+  }
+
+  /* Centra el mapa en la ubicación actual del teléfono. No crea puntos: el área y
+     las coordenadas de la ficha siguen saliendo solo del polígono que dibujes. */
+  function centrarEnMiUbicacion() {
+    if (!S.map) return;
+    if (!navigator.geolocation) { toast('Este dispositivo no ofrece servicio de ubicación.', 5000); return; }
+    toast('Buscando tu ubicación…', 2500);
+    S.map.locate({ setView: true, maxZoom: 17, enableHighAccuracy: true });
   }
 
   /* autoLugar = true solo cuando el usuario dibuja o edita el área: ahí se recalculan
@@ -743,8 +794,10 @@
       case 'f-open': openDetail(id); break;
       case 'f-edit': openFicha(id); break;
       case 'f-dup': dupFicha(id); break;
-      case 'f-pdf': pdfNow(id); break;
-      case 'f-share': sharePdf(id); break;
+      case 'f-pdf': informeNow(id, 'pdf'); break;
+      case 'f-word': informeNow(id, 'docx'); break;
+      case 'f-share': informeShare(id, 'pdf'); break;
+      case 'f-shareword': informeShare(id, 'docx'); break;
       case 'f-geo': exportGeoOne(id); break;
       case 'f-zip': exportZipOne(id); break;
       case 'f-del': await delFicha(id); break;

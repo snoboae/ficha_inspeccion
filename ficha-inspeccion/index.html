@@ -55,14 +55,16 @@
       <h2>Acciones</h2>
       <div class="actgrid">
         <button class="btn" data-act="f-pdf">Descargar PDF</button>
+        <button class="btn" data-act="f-word">Descargar Word</button>
         <button class="btn" data-act="f-share" id="d-share">Compartir PDF</button>
+        <button class="btn" data-act="f-shareword" id="d-shareword">Compartir Word</button>
         <button class="btn" data-act="f-geo" id="d-geo">Exportar perímetro (GeoJSON)</button>
         <button class="btn" data-act="f-zip" id="d-zip">Exportar fotos (ZIP)</button>
         <button class="btn" data-act="f-edit">Editar</button>
         <button class="btn" data-act="f-dup">Duplicar</button>
         <button class="btn danger" data-act="f-del">Eliminar</button>
       </div>
-      <p class="hint">"Descargar PDF" guarda el archivo en el teléfono; "Compartir PDF" lo envía por WhatsApp, correo u otra app.</p>
+      <p class="hint">"Descargar" guarda el archivo en el teléfono; "Compartir" lo envía por WhatsApp, correo u otra app. El <b>PDF</b> es para imprimir y firmar a mano; el <b>Word (.docx)</b> es el mismo informe pero se puede editar.</p>
     </div>
   </section>
 
@@ -101,7 +103,7 @@
 
     <div class="panel">
       <h2>Área de inspección y mapa</h2>
-      <p class="hint">Dibuja el área con las herramientas (arriba a la izquierda): rectángulo/cuadrado o polígono de varios vértices. La coordenada UTM se calcula sola desde el centroide del polígono.</p>
+      <p class="hint">Dibuja el área con las herramientas (arriba a la izquierda): rectángulo/cuadrado o polígono de varios vértices. La coordenada UTM se calcula sola desde el centroide del polígono. El botón de ubicación (&#128205;) centra el mapa donde estás, solo para orientarte: no crea ningún punto.</p>
       <div class="form">
         <label class="fld"><span>Este - X (UTM)</span><input id="c-este" readonly placeholder="—"></label>
         <label class="fld"><span>Norte - Y (UTM)</span><input id="c-norte" readonly placeholder="—"></label>
@@ -228,6 +230,7 @@
 <script src="js/mapimg.js"></script>
 <script src="js/lugares.js"></script>
 <script src="js/pdf.js"></script>
+<script src="js/docx.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

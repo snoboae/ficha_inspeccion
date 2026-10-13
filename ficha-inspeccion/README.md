@@ -8,14 +8,29 @@ Aplicación web instalable para levantar **fichas de inspección técnica en cam
 2. **Fichas → Nueva ficha**:
    - **Identificación**: institución (obligatoria), dirección/área y unidad (opcionales), **número de ficha** (manual, único), tema y fecha.
    - **Lugar**: Administración Zonal, Parroquia, Barrio y Microcuenca. Se **completan solos** con el centroide del área dibujada (ver más abajo); puedes corregirlos a mano o volver a calcularlos con **"Completar desde el mapa"**.
-   - **Coordenada y mapa**: con las herramientas de dibujo (arriba a la izquierda) traza el **perímetro de inspección** como **rectángulo/cuadrado** o **polígono de varios vértices**, y elige la capa base **Satélite (Esri)** o **Calles (OSM)**. Las coordenadas (WGS84 y UTM) se calculan solas desde el **centroide** del polígono.
+   - **Área de inspección y mapa**: traza el área con las herramientas de dibujo (arriba a la izquierda) como **rectángulo/cuadrado** o **polígono de varios vértices**, y elige la capa base **Satélite (Esri)** o **Calles (OSM)**. La coordenada **UTM** y el **área** se calculan solas desde el **centroide** del polígono. El **botón de ubicación** (arriba a la izquierda del mapa) lo centra donde estás, solo para orientarte: **no crea ningún punto**.
    - **Objetivo / Antecedentes / Desarrollo de actividades**: texto libre.
    - **Participantes** y **Recomendaciones**: una por línea (el PDF las numera).
    - **Registro fotográfico**: toma fotos con la cámara o agrega varias desde la galería. Cada foto tiene su **descripción** (máx. 90 caracteres, para que quepa en el PDF) y se puede reordenar o borrar.
    - **Firmas de responsabilidad**: elige el responsable en cada fila (Elaboración / Revisado / Aprobado…). Su nombre y cargo se copian; el espacio de firma queda en blanco en el PDF para firmar el impreso.
-   - **Guardar** genera la imagen del mapa y abre la ficha, desde donde puedes **Descargar PDF**, **Compartir PDF**, exportar la inspección a GeoJSON, exportar las fotos en ZIP, Editar, Duplicar o Eliminar.
+   - **Guardar** genera la imagen del mapa y abre la ficha, desde donde puedes **Descargar PDF**, **Descargar Word**, **Compartir PDF**, **Compartir Word**, exportar la inspección a GeoJSON, exportar las fotos en ZIP, Editar, Duplicar o Eliminar.
 3. **Exportar para SIG**: en la pestaña **Fichas**, "Exportar Inspecciones (GeoJSON)" descarga **todos los polígonos** con los datos de cada levantamiento (ficha, institución, tema, fecha, lugar, coordenada del centroide, área, perímetro y número de fotos). Nombres de campo de hasta 10 caracteres para que no se trunquen al pasar a shapefile.
 4. **Respaldo**: exporta/importa fichas y responsables en un `.json` (sin fotografías). Las fotografías se exportan aparte en un `.zip` con un índice CSV.
+
+## El informe: PDF y Word
+
+Cada ficha se puede sacar en **dos formatos**, con los mismos datos, las mismas fotos y el mismo mapa:
+
+| | **PDF** | **Word (.docx)** |
+|---|---|---|
+| Para qué sirve | Imprimir y firmar a mano | **Editar** antes de firmar |
+| Aspecto | Diseño fijo de la ficha | Mismo informe, con estilos reales de Word |
+| ¿Se puede editar? | No | Sí: textos, tablas, fotos y encabezado |
+
+- El **Word** usa **Título 1** de verdad en las secciones, así que funciona el **panel de navegación** de Word y se puede reestilizar el documento entero de una vez.
+- Incluye **encabezado** con la banda institucional (solo en la primera página), **pie** con la institución, el número de ficha y **"Página X de Y"** automático, y la tabla de firmas repite su cabecera si se parte en dos páginas.
+- Se genera **en el teléfono y sin conexión**, sin librerías externas ni servidor: se arma el archivo `.docx` con el mismo empaquetador ZIP que usa la exportación de fotos (`js/zip.js`). Tarda unas centésimas de segundo.
+- Los botones **Descargar** guardan el archivo en el teléfono; **Compartir** lo envían por WhatsApp, correo u otra app.
 
 ## Lugar automático desde el mapa
 
@@ -48,9 +63,10 @@ Junto a esta carpeta hay un `publicar.bat` (y `publicar.ps1`). Usa el **mismo to
 
 ## Sin internet en campo
 
-- La app **abre y funciona completa**: fichas, responsables, formulario, fotos y PDF no necesitan red.
-- El **mapa base** (satélite o calles) sí necesita internet o teselas guardadas. Sin ellas verás el mapa en gris, pero **puedes dibujar el perímetro igual**, y el PDF sale con la referencia (sin la imagen de fondo).
-- Para tener el fondo en campo: con internet, dibuja el perímetro y pulsa **Precargar mapa de la zona**. También se guardan las teselas que ya viste.
+- La app **abre y funciona completa**: fichas, responsables, formulario, fotos, Lugar automático y PDF no necesitan red.
+- El **mapa base** (satélite o calles) sí necesita internet o teselas guardadas. Sin ellas verás el mapa en gris, pero **puedes dibujar el área igual**, y el PDF sale con la referencia (sin la imagen de fondo).
+- Para tener el fondo en campo: con internet, dibuja el área y pulsa **Precargar mapa de la zona**. También se guardan las teselas que ya viste.
+- El **botón de ubicación** funciona **sin internet**: usa el GPS del teléfono, no la red.
 
 ## Notas
 

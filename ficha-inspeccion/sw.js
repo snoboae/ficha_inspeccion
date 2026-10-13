@@ -1,7 +1,7 @@
 /* Service worker: la app funciona sin conexión.
    - Archivos de la app: caché con actualización en segundo plano.
    - Teselas de mapa: caché con límite (las que ya viste o precargaste). */
-const VERSION = 'v6ebcc6b5';
+const VERSION = 'v29b84ede';
 const APP_CACHE = 'fi-app-' + VERSION;
 const TILE_CACHE = 'bv-tiles-v1';
 const MAX_TILES = 2500;
@@ -18,6 +18,7 @@ const APP_FILES = [
   'js/mapimg.js',
   'js/lugares.js',
   'js/pdf.js',
+  'js/docx.js',
   'js/app.js',
   'datos/lugares.geojson',
   'lib/leaflet/leaflet.js',
