@@ -48,6 +48,9 @@ main { max-width: 860px; margin: 0 auto; padding: 12px 16px 24px; }
 .fld input, .fld select, .fld textarea, .filter { font: inherit; font-size: 16px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px;
   background: var(--bg); color: var(--ink); width: 100%; min-height: 42px; }
 .fld textarea { resize: vertical; }
+/* Campos calculados: se muestran como valores, no como campos editables */
+.fld input[readonly] { background: transparent; color: var(--brand); font-weight: 600; }
+.fld select[disabled] { background: transparent; color: var(--brand); font-weight: 600; opacity: 1; }
 .inline { display: flex; gap: 6px; }
 .inline > * { flex: 1; }
 .inline .btn { flex: none; }
@@ -57,7 +60,10 @@ main { max-width: 860px; margin: 0 auto; padding: 12px 16px 24px; }
 
 .map { height: 62vh; min-height: 340px; border-radius: 10px; border: 1px solid var(--line); z-index: 1; }
 .map.coordmap { height: 40vh; min-height: 260px; margin-top: 10px; }
-.statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; }
+.statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.stat { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.stat small { color: var(--muted); font-size: 13px; }
+.stat b { font-size: 16px; }
 .preview img { max-width: 100%; border-radius: 10px; border: 1px solid var(--line); display: block; }
 
 .cards { display: grid; gap: 10px; }
@@ -83,7 +89,7 @@ main { max-width: 860px; margin: 0 auto; padding: 12px 16px 24px; }
 .kv { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .kv div { display: flex; flex-direction: column; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .kv small { color: var(--muted); font-size: 12px; }
-.kv b { font-weight: 600; word-break: break-word; }
+.kv b { font-weight: 600; word-break: break-word; white-space: pre-line; }
 .actgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 @media (max-width: 380px) { .actgrid { grid-template-columns: 1fr; } }
 

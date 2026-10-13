@@ -40,6 +40,7 @@
   }
 
   /* ---------- estado ---------- */
+  let avisoLugar = false;   // el aviso de "no se pudo completar el lugar" se da una sola vez
   const S = {
     inspections: [], people: [], tab: 'fichas',
     ficha: null, detailId: null, q: '',
@@ -373,13 +374,15 @@
       },
       edit: { featureGroup: drawn, remove: false }
     }));
-    map.on(L.Draw.Event.CREATED, (e) => setRing(ringFromLatLngs(e.layer.getLatLngs()[0]), true));
-    map.on(L.Draw.Event.EDITED, () => { let r = null; drawn.eachLayer((l) => { r = ringFromLatLngs(l.getLatLngs()[0]); }); if (r) setRing(r, false); });
+    map.on(L.Draw.Event.CREATED, (e) => setRing(ringFromLatLngs(e.layer.getLatLngs()[0]), true, true));
+    map.on(L.Draw.Event.EDITED, () => { let r = null; drawn.eachLayer((l) => { r = ringFromLatLngs(l.getLatLngs()[0]); }); if (r) setRing(r, false, true); });
 
     S.map = map; S.drawn = drawn;
   }
 
-  function setRing(ring, fit) {
+  /* autoLugar = true solo cuando el usuario dibuja o edita el área: ahí se recalculan
+     los campos del Lugar. Al abrir una ficha ya guardada NO se toca lo escrito. */
+  function setRing(ring, fit, autoLugar) {
     S.ring = ring;
     if (S.drawn) {
       S.drawn.clearLayers();
@@ -391,13 +394,14 @@
     }
     updateCoordFromRing();
     updateRingStats();
+    if (autoLugar) fillLugarFromMap(true);
   }
 
   function updateRingStats() {
     const r = S.ring;
     if (r.length < 3) { $('ringStats').innerHTML = ''; return; }
-    const st = (v, l) => `<div class="stat"><b>${v}</b><small>${l}</small></div>`;
-    $('ringStats').innerHTML = st((Geo.area(r) / 10000).toFixed(2) + ' ha', 'Área') + st(Math.round(Geo.perimeter(r)) + ' m', 'Perímetro') + st(r.length, 'Vértices');
+    const st = (l, v) => `<div class="stat"><small>${l}:</small> <b>${v}</b></div>`;
+    $('ringStats').innerHTML = st('Área', (Geo.area(r) / 10000).toFixed(2) + ' ha') + st('Perímetro', Math.round(Geo.perimeter(r)) + ' m') + st('Vértices', r.length);
   }
 
   function clearRing() {
@@ -422,6 +426,32 @@
       S.coord = { lat: null, lng: null, e: null, n: null, zone: null, hemi: 'S' };
     }
     syncCoordFields();
+  }
+
+  /* Completa Administración Zonal, Parroquia, Barrio y Microcuenca con lo que
+     devuelven las capas para el centroide del área. Los campos siguen editables. */
+  async function fillLugarFromMap(silencioso) {
+    if (S.ring.length < 3 || S.coord.lat == null) return;
+    const btn = $('btnFillLugar');
+    if (btn) btn.disabled = true;
+    try {
+      const r = await Lugares.resolver(S.coord.lat, S.coord.lng);
+      const campos = [['f-zonal', r.zonal], ['f-parroquia', r.parroquia], ['f-barrio', r.barrio], ['f-microcuenca', r.microcuenca]];
+      let puestos = 0;
+      campos.forEach(([id, v]) => { if (v && $(id).value !== v) { $(id).value = v; puestos++; } });
+      if (silencioso && !puestos) return;
+      const faltan = [['f-zonal', 'Administración Zonal'], ['f-parroquia', 'Parroquia'], ['f-barrio', 'Barrio'], ['f-microcuenca', 'Microcuenca']]
+        .filter(([id]) => !$(id).value).map(([, l]) => l);
+      if (faltan.length) toast('Lugar completado. El centroide no cae dentro de: ' + faltan.join(', ') + '. Revisa o escríbelo a mano.', 6000);
+      else toast('Lugar completado desde el mapa.');
+    } catch (e) {
+      // Se avisa una sola vez por sesión: si la app está abierta como archivo local
+      // o el archivo no está, no tiene sentido repetir el aviso en cada trazo.
+      if (!avisoLugar) {
+        avisoLugar = true;
+        toast('No se pudo completar el lugar: ' + e.message, 8000);
+      }
+    } finally { if (btn) btn.disabled = false; }
   }
 
   async function prefetchArea() {
@@ -760,6 +790,7 @@
 
   $('btnClearRing').onclick = clearRing;
   $('btnPrefetch').onclick = prefetchArea;
+  $('btnFillLugar').onclick = () => fillLugarFromMap(false);
 
   $('btnCsv').onclick = exportCsv;
   $('btnGeoAll').onclick = exportGeoAll;
@@ -781,6 +812,9 @@
     } catch (e) { console.error(e); toast('No se pudo abrir el almacenamiento local: ' + e.message, 8000); }
     goTab('fichas');
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    /* Se precargan las capas de lugar (2 MB) en segundo plano, DESPUÉS de que la app
+       abra y pinte, para que la respuesta sea inmediata al dibujar el área. */
+    setTimeout(() => { Lugares.cargar().catch((e) => console.warn('Lugares', e)); }, 1200);
     if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
       const hadController = !!navigator.serviceWorker.controller;
       navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('updateBar').classList.remove('hidden'); });

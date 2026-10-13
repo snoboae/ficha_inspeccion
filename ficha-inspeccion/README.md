@@ -7,7 +7,7 @@ Aplicación web instalable para levantar **fichas de inspección técnica en cam
 1. **Responsables** (opcional, una sola vez): nombre y cargo. Sirven para llenar la tabla de firmas eligiéndolos de una lista.
 2. **Fichas → Nueva ficha**:
    - **Identificación**: institución (obligatoria), dirección/área y unidad (opcionales), **número de ficha** (manual, único), tema y fecha.
-   - **Lugar**: Administración Zonal, Parroquia, Barrio y Microcuenca.
+   - **Lugar**: Administración Zonal, Parroquia, Barrio y Microcuenca. Se **completan solos** con el centroide del área dibujada (ver más abajo); puedes corregirlos a mano o volver a calcularlos con **"Completar desde el mapa"**.
    - **Coordenada y mapa**: con las herramientas de dibujo (arriba a la izquierda) traza el **perímetro de inspección** como **rectángulo/cuadrado** o **polígono de varios vértices**, y elige la capa base **Satélite (Esri)** o **Calles (OSM)**. Las coordenadas (WGS84 y UTM) se calculan solas desde el **centroide** del polígono.
    - **Objetivo / Antecedentes / Desarrollo de actividades**: texto libre.
    - **Participantes** y **Recomendaciones**: una por línea (el PDF las numera).
@@ -16,6 +16,18 @@ Aplicación web instalable para levantar **fichas de inspección técnica en cam
    - **Guardar** genera la imagen del mapa y abre la ficha, desde donde puedes **Descargar PDF**, **Compartir PDF**, exportar la inspección a GeoJSON, exportar las fotos en ZIP, Editar, Duplicar o Eliminar.
 3. **Exportar para SIG**: en la pestaña **Fichas**, "Exportar Inspecciones (GeoJSON)" descarga **todos los polígonos** con los datos de cada levantamiento (ficha, institución, tema, fecha, lugar, coordenada del centroide, área, perímetro y número de fotos). Nombres de campo de hasta 10 caracteres para que no se trunquen al pasar a shapefile.
 4. **Respaldo**: exporta/importa fichas y responsables en un `.json` (sin fotografías). Las fotografías se exportan aparte en un `.zip` con un índice CSV.
+
+## Lugar automático desde el mapa
+
+Al dibujar o editar el área, la app toma el **centroide** y busca dentro de qué polígono cae, rellenando **Administración Zonal, Parroquia, Barrio y Microcuenca**. Los campos quedan **editables** y hay un botón **"Completar desde el mapa"** para recalcularlos.
+
+- Los polígonos vienen en `datos/lugares.geojson`: Zonales (10), Barrios (1.303) y Microcuencas (31), con la parroquia incluida en cada barrio.
+- La consulta es **instantánea** (menos de 0,05 ms) y funciona **sin conexión**, porque el archivo se guarda en la caché de la app.
+- Si el centroide cae fuera de las capas (por ejemplo, fuera del DMQ), el campo se deja **vacío** y la app lo avisa: nunca inventa un valor.
+- Los nombres se muestran en formato título (`Los Chillos`, `El Dean`, `Río San Pedro`).
+- Al **abrir una ficha ya guardada no se sobrescribe** lo que estaba escrito; solo se recalcula cuando tú dibujas o editas el área.
+
+> El archivo de lugares se genera con `_tools/genera_datos_app.py` a partir de las capas de `Capas/`. Si te actualizan esas capas, hay que volver a ejecutarlo.
 
 ## Qué va a GitHub y qué queda en el teléfono
 

@@ -87,11 +87,15 @@
 
     <div class="panel">
       <h2>Lugar</h2>
+      <p class="hint">Se completa solo con el centroide del área dibujada. Puedes corregir cualquier campo a mano.</p>
       <div class="form">
         <label class="fld"><span>Administración Zonal</span><input id="f-zonal" autocomplete="off"></label>
         <label class="fld"><span>Parroquia</span><input id="f-parroquia" autocomplete="off"></label>
         <label class="fld"><span>Barrio</span><input id="f-barrio" autocomplete="off"></label>
         <label class="fld"><span>Microcuenca</span><input id="f-microcuenca" autocomplete="off"></label>
+      </div>
+      <div class="row wrap">
+        <button class="btn" id="btnFillLugar" type="button">Completar desde el mapa</button>
       </div>
     </div>
 
@@ -222,6 +226,7 @@
 <script src="js/fotos.js"></script>
 <script src="js/zip.js"></script>
 <script src="js/mapimg.js"></script>
+<script src="js/lugares.js"></script>
 <script src="js/pdf.js"></script>
 <script src="js/app.js"></script>
 </body>
